@@ -1,0 +1,60 @@
+from PIL import Image
+import imagehash
+import os
+from tqdm import tqdm
+import cv2
+
+
+folder1 = 'C:/Work/1'
+folder2 = 'C:/Work/2'
+
+images_folder_1 = {}
+images_folder_2 = {}
+
+progress_bar_1 = tqdm(total=len(os.listdir(folder1)), desc="Создаем базу картинок. Папка 1")
+
+for filename in os.listdir(folder1):
+    if filename.endswith(('.png', '.jpg', '.jpeg')):
+        image_path = f'{folder1}/{filename}'
+        image = cv2.imread(image_path)
+        images_folder_1[image_path] = image
+        progress_bar_1.update(1)
+progress_bar_1.close()
+
+progress_bar_2 = tqdm(total=len(os.listdir(folder2)), desc="Создаем базу картинок. Папка 2")
+
+for filename in os.listdir(folder2):
+    if filename.endswith(('.png', '.jpg', '.jpeg')):
+        image_path = f'{folder2}/{filename}'
+        image = cv2.imread(image_path)
+        images_folder_2[image_path] = image
+        progress_bar_2.update(1)
+progress_bar_2.close()
+
+cound = 0
+# Создание индикатора прогресса
+progress_bar = tqdm(total=len(os.listdir(folder1)) * len(os.listdir(folder2)), desc="Сравнение")
+with open('C:/Work/Result_vichitanie.txt', 'w') as file:
+    for filename1, image1 in images_folder_1.items():
+        for filename2, image2 in images_folder_2.items():
+            if image1.shape == image2.shape:
+                # Вычисление разницы между изображениями
+                difference = cv2.absdiff(image1, image2)
+                # Преобразование разницы в черно-белое изображение
+                gray_difference = cv2.cvtColor(difference, cv2.COLOR_BGR2GRAY)
+                # Применение порога для выделения различий
+                _, thresholded = cv2.threshold(gray_difference, 70, 255, cv2.THRESH_BINARY)
+                # Подсчет суммы всех пикселей в пороговом изображении
+                total_difference = cv2.sumElems(thresholded)
+                # Если total_difference равно нулю, изображения идентичны
+                if total_difference[0] == 0:
+                    cound += 1
+                    # print('\n')
+                    print(f'Дубликат: {filename1} и {filename2}')
+                    file.write(f'Дубликат: {filename1} и {filename2}\n')
+                    # break
+            # Обновление индикатора прогресса
+            progress_bar.update(1)
+# Завершение индикатора прогресса
+progress_bar.close()
+print(f'Количество дубликатов: {cound}')
