@@ -1,0 +1,567 @@
+from PIL import Image
+import os
+
+# ______________________________________________________________________________________________________________________
+# Функция для изменения размера изображения так, чтобы его можно было разделить на куски 640x640
+
+def resize_image(image, base=640):
+    w, h = image.size
+    w_new = base * ((w + base - 1) // base)
+    h_new = base * ((h + base - 1) // base)
+    return image.resize((w_new, h_new)), image.size
+
+# ______________________________________________________________________________________________________________________
+# Функция для нарезки изображения
+
+def crop_image(image, base=640):
+    w, h = image.size
+    crops = []
+    for i in range(0, h, base):
+        for j in range(0, w, base):
+            box = (j, i, j + base, i + base)
+            crop = image.crop(box)
+            crops.append(crop)
+    return crops
+
+
+# ______________________________________________________________________________________________________________________
+# Функция вычитывания и приебразования файла аннотаций. Вычитываются данные: класс, коордиаты точек описывающих сегмент
+# изображения принадлежащий классу и количество классов. Функция возвращает два списка, в одном координаты в процентах,
+# в другом в писелях
+def transforming_data_in_annotations(filename, image_size):
+    return_data_percent = []
+    return_data_pixel = []
+    clases = ''
+    with open(filename, 'r', encoding='utf-8') as file:
+        count = 0
+        for line in file:
+            checkline = ''
+            checkline_full = ''
+            points_pixel = []
+            points_percent = []
+            countspace = 0
+            for symbol in line:
+                checkline_full = checkline_full + symbol
+                checkline = checkline + symbol
+                if symbol == ' ' or symbol == '\n':
+                    countspace = countspace + 1
+                    if symbol == ' ' and countspace == 1:
+                        clases = int(checkline)
+                        checkline = ''
+                    if symbol == ' ' and countspace % 2 == 0 and countspace != 1:
+                        # print(f'Проверка x {checkline.strip()}')
+                        x_percent = float(checkline.strip())
+                        x_pixel = int(float(checkline.strip()) * image_size[0])
+                        # print(f'X в формате float {x}')
+                        checkline = ''
+                    if (symbol == ' ' and countspace % 2 != 0 and countspace != 1) or symbol == '\n':
+                        # print(f'Проверка y {checkline.strip()}')
+                        y_percent = float(checkline.strip())
+                        y_pixel = int(float(checkline.strip()) * image_size[1])
+                        #print(f'Y в формате float {y}')
+                        checkline = ''
+                        point_percent = (x_percent, y_percent)
+                        points_percent.append(point_percent)
+
+                        point_pixel = (x_pixel, y_pixel)
+                        points_pixel.append(point_pixel)
+
+            line_data_percent = (clases, points_percent)
+            line_data_pixel = (clases, points_pixel)
+            return_data_percent.append(line_data_percent)
+            return_data_pixel.append(line_data_pixel)
+            count += 1
+            # print(f'Счетчик строк: {count}')
+            # print(f'Класс: {clases} Его строка: {checkline_full}')
+            # print(f'Класс: {clases} Соответствующий массив точек в процентах {points_percent}')
+            # # print(f'Класс: {clases} Соответствующий массив точек в пикселях  {points_pixel}')
+            # print(line_data_percent)
+            # print(line_data_pixel)
+        return return_data_percent, return_data_pixel, count
+
+# ______________________________________________________________________________________________________________________
+# Фукция разделения точек на разные файлы
+
+def crop_annotation(data_pixel, base=640):
+    test_cound = 0
+    new_pixel_data_annotation_1 = []
+    new_pixel_data_annotation_2 = []
+    new_pixel_data_annotation_3 = []
+    new_pixel_data_annotation_4 = []
+    new_pixel_data_annotation_5 = []
+    new_pixel_data_annotation_6 = []
+    previous_index_line = 0
+    for index_line, segment in enumerate(data_pixel):
+        # print(f'переменная Segment {segment}')
+        new_pixel_segment_file_1 = []
+        new_pixel_segment_file_2 = []
+        new_pixel_segment_file_3 = []
+        new_pixel_segment_file_4 = []
+        new_pixel_segment_file_5 = []
+        new_pixel_segment_file_6 = []
+        segment_check_1 = False
+        segment_check_2 = False
+        segment_check_3 = False
+        segment_check_4 = False
+        segment_check_5 = False
+        segment_check_6 = False
+        pixel_check_newimage = 0
+        new_images = []
+        picture_number = []
+        difference = 0
+        previous_difference = 0
+        current_point_belongs_image = 0
+        previous_point_belonged_image = 0
+        classes = segment[0]
+        for index_pixsel, pixel in enumerate(segment[1]):
+            # print(f'переменная pixel {pixel}')
+            # if index_pixsel == 0:
+            # classes = pixel
+            # if index_pixsel > 0:
+
+            if pixel[0] <= base:
+                if pixel[1] <= base:
+                    current_point_belongs_image = 1
+                    if not segment_check_1:
+                        new_pixel_segment_file_1.append(classes)
+                        segment_check_1 = True
+                    new_pixel_segment_file_1.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 1:
+                        if pixel_check_newimage - 1 == 1:
+                            new_pixel_segment_file_1.append((base, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_1[len(new_pixel_segment_file_1)-2]
+                            new_pixel_segment_file_1[len(new_pixel_segment_file_1) - 2] = new_pixel_segment_file_1[len(new_pixel_segment_file_1)-1]
+                            new_pixel_segment_file_1[len(new_pixel_segment_file_1) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_2.append((0, pixel[1]))
+
+
+                        if pixel_check_newimage - 3 == 1:
+                            new_pixel_segment_file_1.append((pixel[0], base))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_1[len(new_pixel_segment_file_1)-2]
+                            new_pixel_segment_file_1[len(new_pixel_segment_file_1) - 2] = new_pixel_segment_file_1[len(new_pixel_segment_file_1)-1]
+                            new_pixel_segment_file_1[len(new_pixel_segment_file_1) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_4.append((pixel[0], 0))
+
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    pixel_check_newimage = 1
+                elif pixel[1] >= base:
+                    current_point_belongs_image = 4
+                    if not segment_check_4:
+                        new_pixel_segment_file_4.append(classes)
+                        segment_check_4 = True
+                    new_pixel_segment_file_4.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 4:
+                        if pixel_check_newimage - 1 == 4:
+                            new_pixel_segment_file_4.append((base, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_4[len(new_pixel_segment_file_4)-2]
+                            new_pixel_segment_file_4[len(new_pixel_segment_file_4) - 2] = new_pixel_segment_file_4[len(new_pixel_segment_file_4)-1]
+                            new_pixel_segment_file_4[len(new_pixel_segment_file_4) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_5.append((0, pixel[1]))
+
+                        if pixel_check_newimage + 3 == 4:
+                            new_pixel_segment_file_1.append((pixel[0], base))
+                            new_pixel_segment_file_4.append((pixel[0], 0))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_4[len(new_pixel_segment_file_4)-2]
+                            new_pixel_segment_file_4[len(new_pixel_segment_file_4) - 2] = new_pixel_segment_file_4[len(new_pixel_segment_file_4)-1]
+                            new_pixel_segment_file_4[len(new_pixel_segment_file_4) - 1] = previous_pixel
+                            # _____________________
+
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    pixel_check_newimage = 4
+            elif pixel[0] >= base and pixel[0] <= base * 2:
+                if pixel[1] <= base:
+                    current_point_belongs_image = 2
+                    if not segment_check_2:
+                        new_pixel_segment_file_2.append(classes)
+                        segment_check_2 = True
+                    new_pixel_segment_file_2.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 2:
+                        if pixel_check_newimage - 1 == 2:
+                            new_pixel_segment_file_2.append((base, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-2]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 2] = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-1]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_3.append((0, pixel[1]))
+
+                        if pixel_check_newimage + 1 == 2:
+                            new_pixel_segment_file_1.append((base, pixel[1]))
+                            new_pixel_segment_file_2.append((0, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-2]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 2] = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-1]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 1] = previous_pixel
+                            # _____________________
+
+                        if pixel_check_newimage - 3 == 2:
+                            new_pixel_segment_file_2.append((pixel[0], base))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-2]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 2] = new_pixel_segment_file_2[len(new_pixel_segment_file_2)-1]
+                            new_pixel_segment_file_2[len(new_pixel_segment_file_2) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_5.append((pixel[0], 0))
+
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    pixel_check_newimage = 2
+                elif pixel[1] >= base:
+                    current_point_belongs_image = 5
+                    if not segment_check_5:
+                        new_pixel_segment_file_5.append(classes)
+                        segment_check_5 = True
+                    new_pixel_segment_file_5.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 5:
+                        if pixel_check_newimage - 1 == 5:
+                            new_pixel_segment_file_5.append((base, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-2]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 2] = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-1]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_6.append((0, pixel[1]))
+
+                        if pixel_check_newimage + 1 == 5:
+                            new_pixel_segment_file_4.append((base, pixel[1]))
+                            new_pixel_segment_file_5.append((0, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-2]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 2] = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-1]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 1] = previous_pixel
+                            # _____________________
+
+                        if pixel_check_newimage + 3 == 5:
+                            new_pixel_segment_file_2.append((pixel[0], base))
+                            new_pixel_segment_file_5.append((pixel[0], 0))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-2]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 2] = new_pixel_segment_file_5[len(new_pixel_segment_file_5)-1]
+                            new_pixel_segment_file_5[len(new_pixel_segment_file_5) - 1] = previous_pixel
+                            # _____________________
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    pixel_check_newimage = 5
+            elif pixel[0] >= base*2 and pixel[0] <= base * 3:
+                if pixel[1] <= base:
+                    current_point_belongs_image = 3
+                    if not segment_check_3:
+                        new_pixel_segment_file_3.append(classes)
+                        segment_check_3 = True
+                    new_pixel_segment_file_3.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 3:
+                        if pixel_check_newimage + 1 == 3:
+                            new_pixel_segment_file_2.append((base, pixel[1]))
+                            new_pixel_segment_file_3.append((0, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_3[len(new_pixel_segment_file_3)-2]
+                            new_pixel_segment_file_3[len(new_pixel_segment_file_3) - 2] = new_pixel_segment_file_3[len(new_pixel_segment_file_3)-1]
+                            new_pixel_segment_file_3[len(new_pixel_segment_file_3) - 1] = previous_pixel
+                            # _____________________
+
+                        if pixel_check_newimage - 3 == 3:
+                            new_pixel_segment_file_3.append((pixel[0], base))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_3[len(new_pixel_segment_file_3)-2]
+                            new_pixel_segment_file_3[len(new_pixel_segment_file_3) - 2] = new_pixel_segment_file_3[len(new_pixel_segment_file_3)-1]
+                            new_pixel_segment_file_3[len(new_pixel_segment_file_3) - 1] = previous_pixel
+                            # _____________________
+                            new_pixel_segment_file_6.append((pixel[0], 0))
+
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    pixel_check_newimage = 3
+                elif pixel[1] >= base:
+                    current_point_belongs_image = 6
+                    if not segment_check_6:
+                        new_pixel_segment_file_6.append(classes)
+                        segment_check_6 = True
+                    new_pixel_segment_file_6.append(pixel)
+                    # Проверка, была ли педыдущая точка старого сегмента в этой новой аннотации(добавляем новые точки)
+                    if pixel_check_newimage != 6:
+                        if pixel_check_newimage + 1 == 6:
+                            new_pixel_segment_file_5.append((base, pixel[1]))
+                            new_pixel_segment_file_6.append((0, pixel[1]))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_6[len(new_pixel_segment_file_6)-2]
+                            new_pixel_segment_file_6[len(new_pixel_segment_file_6) - 2] = new_pixel_segment_file_6[len(new_pixel_segment_file_6)-1]
+                            new_pixel_segment_file_6[len(new_pixel_segment_file_6) - 1] = previous_pixel
+                            # _____________________
+
+                        if pixel_check_newimage + 3 == 6:
+                            new_pixel_segment_file_3.append((pixel[0], base))
+                            new_pixel_segment_file_6.append((pixel[0], 0))
+                            # Меняю пикселы местами
+                            previous_pixel = new_pixel_segment_file_6[len(new_pixel_segment_file_6)-2]
+                            new_pixel_segment_file_6[len(new_pixel_segment_file_6) - 2] = new_pixel_segment_file_6[len(new_pixel_segment_file_6)-1]
+                            new_pixel_segment_file_6[len(new_pixel_segment_file_6) - 1] = previous_pixel
+                            # _____________________
+
+
+                    # Сохраняю в список из какой в какую картинку произошел переход пиксела
+                    new_images.append(current_point_belongs_image)
+                    # _____________________
+                    pixel_check_newimage = 6
+
+
+            # Добавляю точки если сегмент делится больше чем на 2 картинки.
+            if index_line == 5:
+                if index_line == previous_index_line:
+                    if current_point_belongs_image != previous_point_belonged_image:
+                        picture_number.append(previous_point_belonged_image)
+                        picture_number.append(current_point_belongs_image)
+                        difference = abs(picture_number[len(picture_number) - 1] - picture_number[1])
+                        if difference != previous_difference and difference != 0:
+                            test_cound = test_cound + 1
+                            if previous_point_belonged_image == 1:
+                                new_pixel_segment_file_1.append((base, base))
+                                new_pixel_segment_file_2.append((0, base))
+                            if previous_point_belonged_image == 2:
+                                new_pixel_segment_file_2.append((0, base))
+                                new_pixel_segment_file_5.append((0, 0))
+                            if previous_point_belonged_image == 5:
+                                new_pixel_segment_file_5.append((0, 0))
+                                new_pixel_segment_file_4.append((base, 0))
+                            if previous_point_belonged_image == 4:
+                                new_pixel_segment_file_4.append((base, 0))
+                                new_pixel_segment_file_1.append((base, base))
+                            temp = picture_number[len(picture_number) - 1]
+                            picture_number.clear()
+                            # picture_number.append(temp)
+                        # _____________________
+            previous_difference = difference
+            previous_index_line = index_line
+            previous_point_belonged_image = current_point_belongs_image
+
+            print(new_images)
+        print(f'Переменная classes: {classes}')
+        print(f'Переменная new_pixel_segment_file_1: {new_pixel_segment_file_1}')
+        print(f'Переменная new_pixel_segment_file_2: {new_pixel_segment_file_2}')
+        print(f'Переменная new_pixel_segment_file_3: {new_pixel_segment_file_3}')
+        print(f'Переменная new_pixel_segment_file_4: {new_pixel_segment_file_4}')
+        print(f'Переменная new_pixel_segment_file_5: {new_pixel_segment_file_5}')
+        print(f'Переменная new_pixel_segment_file_6: {new_pixel_segment_file_6}')
+
+        # Проверка не пустой ли список точек класса, если не пустой то добавляется в новый список классов
+        if new_pixel_segment_file_1:
+            new_pixel_data_annotation_1.append(new_pixel_segment_file_1)
+        if new_pixel_segment_file_2:
+            new_pixel_data_annotation_2.append(new_pixel_segment_file_2)
+        if new_pixel_segment_file_3:
+            new_pixel_data_annotation_3.append(new_pixel_segment_file_3)
+        if new_pixel_segment_file_4:
+            new_pixel_data_annotation_4.append(new_pixel_segment_file_4)
+        if new_pixel_segment_file_5:
+            new_pixel_data_annotation_5.append(new_pixel_segment_file_5)
+        if new_pixel_segment_file_6:
+            new_pixel_data_annotation_6.append(new_pixel_segment_file_6)
+        print(new_images)
+    return new_pixel_data_annotation_1, new_pixel_data_annotation_2, new_pixel_data_annotation_3, new_pixel_data_annotation_4, new_pixel_data_annotation_5, new_pixel_data_annotation_6
+
+# ______________________________________________________________________________________________________________________
+# Перевод разметки в формате пикселей в формат процента - коэфиициента. Приведение коордигнат в диапазон 640
+
+def conv_pixel_to_precent(pixel_data, image_crop_size=640):
+    precent_data = []
+    for clas_ind, classes in enumerate(pixel_data):
+        precent_class = []
+        for point_ind, point in enumerate(classes):
+            if point_ind == 0:
+                class_numer = point
+                precent_class.append(class_numer)
+            else:
+                list_point = list(point)
+                for ind_i, i in enumerate(list_point):
+                    if (list_point[ind_i]/(image_crop_size * 2)) > 1:
+                        list_point[ind_i] = list_point[ind_i] - (image_crop_size * 2)
+
+                    if (list_point[ind_i]/image_crop_size) > 1:
+                        list_point[ind_i] = (list_point[ind_i] - image_crop_size)
+
+                list_point = (list_point[0]/image_crop_size, list_point[1]/image_crop_size)
+                point = tuple(list_point)
+                precent_class.append(point)
+        precent_data.append(precent_class)
+    return precent_data
+
+# ______________________________________________________________________________________________________________________
+# Функция сохранения шести новых файлов аннотаций
+
+def save_6_files_annotations(filename, data_1, data_2, data_3, data_4, data_5, data_6):
+
+    new_filename = ['1', '2', '3', '4', '5', '6']
+    for ind_i, i in enumerate(new_filename):
+        new_filename[ind_i] = f'{filename[:-4]}_{ind_i}.txt'
+    print(filename)
+    for ind_filee, filee in enumerate(new_filename):
+        with open(filee, 'w', encoding='utf-8') as file:
+            if ind_filee == 0:
+                for ind_cl, cl in enumerate(data_1):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_1) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_1) - 1):
+                                    file.write(f'{y}')
+            if ind_filee == 1:
+                for ind_cl, cl in enumerate(data_2):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_2) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_2) - 1):
+                                    file.write(f'{y}')
+            if ind_filee == 2:
+                for ind_cl, cl in enumerate(data_3):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_3) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_3) - 1):
+                                    file.write(f'{y}')
+            if ind_filee == 3:
+                for ind_cl, cl in enumerate(data_4):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_4) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_4) - 1):
+                                    file.write(f'{y}')
+            if ind_filee == 4:
+                for ind_cl, cl in enumerate(data_5):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_5) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_5) - 1):
+                                    file.write(f'{y}')
+            if ind_filee == 5:
+                for ind_cl, cl in enumerate(data_6):
+                    for ind_pint, point in enumerate(cl):
+                        if ind_pint == 0:
+                            file.write(f'{point} ')
+                        else:
+                            for ind_y, y in enumerate(point):
+                                if ind_y == 0:
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint < (len(cl) - 1):
+                                    file.write(f'{y} ')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl < (len(data_6) - 1):
+                                    file.write(f'{y}\n')
+                                if ind_y == 1 and ind_pint == (len(cl) - 1) and ind_cl == (len(data_6) - 1):
+                                    file.write(f'{y}')
+    return
+
+
+
+
+
+# ______________________________________________________________________________________________________________________
+# Главная часть
+
+source_folder = "C:/Users/User/Downloads/--- 100 ----- --- -----------.v3i.yolov8/train_1_images — копия"  # Путь к исходной папке
+
+for filename in os.listdir(f'{source_folder}/images'):
+    if filename.endswith(('.png', '.jpg', '.jpeg')):
+        filepath = f'{source_folder}/images/{filename}'
+        image = Image.open(filepath)
+
+        # Изменение размера изображения
+        resized_image, new_image_size = resize_image(image)
+
+        # Нарезка изображения
+        crops = crop_image(resized_image)
+
+        # Сохранение нарезанных изображений
+        for idx, crop in enumerate(crops):
+            dest_filepath = f"{source_folder}/images/{filename.split('.')[0]}_{idx}.png"
+            crop.save(dest_filepath, 'PNG')
+
+    # ______________________________________________________________________________________________________________________
+    # Вывод на экран переменных, возвращенных функцией transforming_data_in_annotations
+    new_image_size = (1920, 1280)
+    my_filename = f'{source_folder}/labels/{filename[:-4]}.txt'
+    data_percent, data_pixel, count = transforming_data_in_annotations(my_filename, new_image_size)
+    try:
+        print(f"Количество строк в файле: {count}")
+        print(f"В процентах: {data_percent}")
+        print(f"В пикселях: {data_pixel}")
+    except FileNotFoundError:
+        print("Файл не найден. Пожалуйста, проверьте путь к файлу.")
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+
+    new_pixel_data_annotation_1, new_pixel_data_annotation_2, new_pixel_data_annotation_3, new_pixel_data_annotation_4, new_pixel_data_annotation_5, new_pixel_data_annotation_6 = crop_annotation(data_pixel)
+    print(f'Проверка новой аннотации в пикселях 1: {new_pixel_data_annotation_1}')
+    print(f'Проверка новой аннотации в пикселях 2: {new_pixel_data_annotation_2}')
+    print(f'Проверка новой аннотации в пикселях 3: {new_pixel_data_annotation_3}')
+    print(f'Проверка новой аннотации в пикселях 4: {new_pixel_data_annotation_4}')
+    print(f'Проверка новой аннотации в пикселях 5: {new_pixel_data_annotation_5}')
+    print(f'Проверка новой аннотации в пикселях 6: {new_pixel_data_annotation_6}')
+
+    print(f'Проверка новой аннотации в процентах 1: {conv_pixel_to_precent(new_pixel_data_annotation_1)}')
+    print(f'Проверка новой аннотации в процентах 2: {conv_pixel_to_precent(new_pixel_data_annotation_2)}')
+    print(f'Проверка новой аннотации в процентах 3: {conv_pixel_to_precent(new_pixel_data_annotation_3)}')
+    print(f'Проверка новой аннотации в процентах 4: {conv_pixel_to_precent(new_pixel_data_annotation_4)}')
+    print(f'Проверка новой аннотации в процентах 5: {conv_pixel_to_precent(new_pixel_data_annotation_5)}')
+    print(f'Проверка новой аннотации в процентах 6: {conv_pixel_to_precent(new_pixel_data_annotation_6)}')
+
+    save_6_files_annotations(my_filename, conv_pixel_to_precent(new_pixel_data_annotation_1), conv_pixel_to_precent(new_pixel_data_annotation_2), conv_pixel_to_precent(new_pixel_data_annotation_3), conv_pixel_to_precent(new_pixel_data_annotation_4), conv_pixel_to_precent(new_pixel_data_annotation_5), conv_pixel_to_precent(new_pixel_data_annotation_6))
+    os.remove(f'{source_folder}/images/{filename}')
+    os.remove(f'{source_folder}/labels/{filename[:-4]}.txt')
+
+print("Фффсе!!!")
