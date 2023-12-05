@@ -1,0 +1,40 @@
+import os
+
+def change_index(filename):
+    modified_lines = []
+    new_modified_lines = []
+    # Открываем файл на чтение
+    with open(filename, 'r', encoding='utf-8') as file:
+        for line in file:
+            if line.startswith('0'):
+                modified_line = '2' + line[1:]
+            elif line.startswith('1'):
+                modified_line = '0' + line[1:]
+
+            modified_lines.append(modified_line)
+
+    for line in modified_lines:
+        if line.startswith('2'):
+            modified_line = '1' + line[1:]
+        else:
+            modified_line = line
+
+        new_modified_lines.append(modified_line)
+
+    # Открываем файл на запись и записываем изменения
+    with open(filename, 'w', encoding='utf-8') as file:
+        file.writelines(new_modified_lines)
+
+
+
+
+    print('тест')
+
+
+source_folder = "C:/1/train/labels"  # Путь к исходной папке
+
+for local_filename in os.listdir(source_folder):
+    filepath = os.path.join(source_folder, local_filename)
+    change_index(filepath)
+
+print('Готово!')
