@@ -1,0 +1,111 @@
+import os
+import cv2
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+
+# ______________________________________________________________________________________________________________________
+# Функция вычитывания и приебразования файла аннотаций. Вычитываются данные: класс, коордиаты точек описывающих сегмент
+# изображения принадлежащий классу и количество классов. Функция возвращает два списка, в одном координаты в процентах,
+# в другом в писелях
+def transforming_data_in_annotations(filename, image_size):
+    return_data_percent = []
+    return_data_pixel = []
+    clases = ''
+    with open(filename, 'r', encoding='utf-8') as file:
+        count = 0
+        for line in file:
+            checkline = ''
+            checkline_full = ''
+            points_pixel = []
+            points_percent = []
+            countspace = 0
+            for symbol in line:
+                checkline_full = checkline_full + symbol
+                checkline = checkline + symbol
+                if symbol == ' ' or symbol == '\n':
+                    countspace = countspace + 1
+                    if symbol == ' ' and countspace == 1:
+                        clases = int(checkline)
+                        checkline = ''
+                    if symbol == ' ' and countspace % 2 == 0 and countspace != 1:
+                        # print(f'Проверка x {checkline.strip()}')
+                        x_percent = float(checkline.strip())
+                        x_pixel = int(float(checkline.strip()) * image_size[0])
+                        # print(f'X в формате float {x}')
+                        checkline = ''
+                    if (symbol == ' ' and countspace % 2 != 0 and countspace != 1) or symbol == '\n':
+                        # print(f'Проверка y {checkline.strip()}')
+                        y_percent = float(checkline.strip())
+                        y_pixel = int(float(checkline.strip()) * image_size[1])
+                        #print(f'Y в формате float {y}')
+                        checkline = ''
+                        point_percent = (x_percent, y_percent)
+                        points_percent.append(point_percent)
+
+                        point_pixel = (x_pixel, y_pixel)
+                        points_pixel.append(point_pixel)
+
+            line_data_percent = (clases, points_percent)
+            line_data_pixel = (clases, points_pixel)
+            return_data_percent.append(line_data_percent)
+            return_data_pixel.append(line_data_pixel)
+            count += 1
+            # print(f'Счетчик строк: {count}')
+            # print(f'Класс: {clases} Его строка: {checkline_full}')
+            # print(f'Класс: {clases} Соответствующий массив точек в процентах {points_percent}')
+            # # print(f'Класс: {clases} Соответствующий массив точек в пикселях  {points_pixel}')
+            # print(line_data_percent)
+            # print(line_data_pixel)
+        return return_data_percent, return_data_pixel, count
+
+# Пути к папкам с изображениями и аннотациями
+images_folder = "C:/1/train/images"
+annotations_folder = "C:/1/train/labels"
+output_folder = "C:/1/images_labels"
+
+font = cv2.FONT_HERSHEY_SIMPLEX
+font_scale = 1
+font_color = (0, 0, 255)  # Цвет текста в формате BGR
+font_thickness = 2
+
+# Создайте выходную папку, если она не существует
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+# Пройдитесь по файлам аннотаций
+for annotation_file in os.listdir(annotations_folder):
+    annotation_path = f'{annotations_folder}/{annotation_file}'
+    image_path = f'{images_folder}/{annotation_file[:-4]}.jpg'
+    # image_path = f'C:/1/1.jpg'
+
+    # Загрузите изображение
+    image = cv2.imread(image_path)
+
+    # Прочтите файл аннотации и получите координаты сегментов
+    # with open(annotation_path, "r") as f:
+    # Парсите файл аннотации, чтобы получить координаты сегментов
+
+    _, classes_list, _ = transforming_data_in_annotations(annotation_path, (1920,1080))
+
+
+    # Добавьте сегменты на изображение
+    for classes in classes_list:
+        class_number = classes[0]
+        # for segment_coords in classes[1]:
+        # Пример: segment_coords содержит список координат сегмента в формате [(x1, y1), (x2, y2), ...]
+        x = classes[1][0][0]
+        y = classes[1][0][1]
+        if class_number == 0:
+            segment_coords = np.array(classes[1], dtype=np.int32)
+            image = cv2.polylines(image, [segment_coords], isClosed=True, color=(0, 255, 0), thickness=2)
+            cv2.putText(image, str(class_number), (x, y), font, font_scale, font_color, font_thickness)
+        if class_number == 1:
+            segment_coords = np.array(classes[1], dtype=np.int32)
+            image = cv2.polylines(image, [segment_coords], isClosed=True, color=(255, 0, 0), thickness=2)
+            cv2.putText(image, str(class_number), (x, y), font, font_scale, font_color, font_thickness)
+
+    # Сохраните новое изображение в выходной папке
+    output_image_path = f'{output_folder}/{annotation_file[:-4]}.jpg'
+    cv2.imwrite(output_image_path, image)
+
+print("Готово! Обработанные изображения с добавленными сегментами сохранены в", output_folder)
