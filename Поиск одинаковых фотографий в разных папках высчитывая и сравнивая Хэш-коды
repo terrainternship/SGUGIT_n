@@ -1,0 +1,50 @@
+from PIL import Image
+import imagehash
+import os
+from tqdm import tqdm
+
+folder1 = 'C:/Work/1000_Chosen'
+folder2 = 'C:/Work/zoomcam2'
+
+hesh_files_folder_1 = {}
+hesh_files_folder_2 = {}
+
+progress_bar_1 = tqdm(total=len(os.listdir(folder1)), desc="Создаем базу хеш кодов. Папка 1")
+
+for filename in os.listdir(folder1):
+    if filename.endswith(('.png', '.jpg', '.jpeg')):
+        image_path = f'{folder1}/{filename}'
+        image = Image.open(image_path)
+        image_hash = str(imagehash.dhash(image))
+        hesh_files_folder_1[image_path] = image_hash
+        progress_bar_1.update(1)
+progress_bar_1.close()
+
+progress_bar_2 = tqdm(total=len(os.listdir(folder2)), desc="Создаем базу хеш кодов. Папка 2")
+
+for filename in os.listdir(folder2):
+    if filename.endswith(('.png', '.jpg', '.jpeg')):
+        image_path = f'{folder2}/{filename}'
+        image = Image.open(image_path)
+        image_hash = str(imagehash.dhash(image))
+        hesh_files_folder_2[image_path] = image_hash
+        progress_bar_2.update(1)
+progress_bar_2.close()
+
+cound = 0
+# Создание индикатора прогресса
+progress_bar = tqdm(total=len(os.listdir(folder1)) * len(os.listdir(folder2)), desc="Сравнение")
+with open('C:/Work/Result_v2.txt', 'w') as file:
+    for filename1, hash_1 in hesh_files_folder_1.items():
+        for filename2, hash_2 in hesh_files_folder_2.items():
+            if hash_1 == hash_2:
+                cound += 1
+                # print('\n')
+                # print(f'Дубликат: {filename1} и {filename2}')
+                file.write(f'Дубликат: {filename1} и {filename2}\n')
+                break
+            # Обновление индикатора прогресса
+            progress_bar.update(1)
+# Завершение индикатора прогресса
+progress_bar.close()
+print(f'Количество дубликатов: {cound}')
