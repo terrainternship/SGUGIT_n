@@ -1,0 +1,262 @@
+import torch
+from pathlib import Path
+import numpy as np
+import cv2
+from ultralytics import YOLO
+import os
+
+# def draw_contour_and_confidence(image, contour, clas, confidence):
+#     """
+#     Функция для наложения контура и текста уверенности на изображение.
+#
+#     :param image: Изображение, на которое накладывается контур и текст.
+#     :param contour: Контур, который нужно наложить.
+#     :param clas: Класс объекта.
+#     :param confidence: Уверенность в определении объекта.
+#     """
+#
+#     # Зеленый контур для класса 0
+#     if clas == 0:
+#         cv2.drawContours(image, [contour], -1, (0, 255, 0), 2)  # Зеленый контур
+#         cv2.putText(image, str(confidence), contour[0], cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 1, cv2.LINE_AA)
+#
+#     # Красный контур для класса 1
+#     elif clas == 1:
+#         cv2.drawContours(image, [contour], -1, (0, 0, 255), 2)  # Красный контур
+#         cv2.putText(image, str(confidence), contour[0], cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 1, cv2.LINE_AA)
+
+def draw_contour_and_confidence(image, contour, clas, confidence):
+    # Вычисление моментов контура
+    M = cv2.moments(contour)
+
+    # Вычисление центра контура
+    if M["m00"] != 0:
+        cX = int(M["m10"] / M["m00"])
+        cY = int(M["m01"] / M["m00"])
+    else:
+        # Установка центра контура в первую точку, если деление на ноль
+        cX, cY = contour[0][0], contour[0][1]
+
+    # Форматирование текста уверенности
+    confidence_text = f"{confidence * 100:.2f}%"
+
+    # Зеленый контур для класса 0
+    if clas == 0:
+        cv2.drawContours(image, [contour], -1, (0, 255, 0), 2)
+        cv2.putText(image, confidence_text, (cX, cY + 2), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+    # Красный контур для класса 1
+    elif clas == 1:
+        cv2.drawContours(image, [contour], -1, (0, 0, 255), 2)
+        cv2.putText(image, confidence_text, (cX, cY - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+
+
+# Пути к папкам и файлам
+input_folder = 'C:/Work/1/images'
+output_annotation_folder = 'C:/Work/1/annotatons'
+output_image_folder = 'C:/Work/image_annotatons'
+weights_file = 'C:/Users/User/PycharmProjects/StudyYOLO8/runs/segment/train19/weights/best.pt'  # Путь к файлу весов модели
+
+
+# Загрузка модели YOLOv8
+model = YOLO(weights_file)
+
+# Функция для преобразования тензора PyTorch в массив numpy
+def tensor_to_numpy(tensor):
+    return tensor.detach().cpu().numpy()
+
+
+
+# Получение списка фотографий в папке с путем
+image_files = [f for f in Path(input_folder).glob('*.*')]
+
+# Получение списка имен файлов в папке
+files = os.listdir(input_folder)
+
+# Создание папок для аннотаций и фотографий с разметкой
+Path(output_annotation_folder).mkdir(parents=True, exist_ok=True)
+# Path(output_image_folder).mkdir(parents=True, exist_ok=True)
+
+for image_path, image_name  in zip(image_files, files):
+    # Чтение изображения
+    image = cv2.imread(str(image_path))
+
+    # Предсказание
+    results = model.predict(source=image_path, conf=0.2, device=0,)
+    masks = results[0].masks  # Тензор масок из вашего вывода YOLOv8
+    xyn = masks.xyn  # Координаты контуров
+    size = results[0].orig_shape
+
+    # Получение списка классов
+    clases_float = results[0].boxes.cls.tolist()
+    clases = [int(x) for x in clases_float]
+
+    # Получение списка уверенности
+    confidence_temp = results[0].boxes.conf.tolist()
+    confidences = [round(num, 2) for num in confidence_temp]
+
+    # Создание копии тензора изображения
+    image_temp_0 = image.copy()
+
+    # Создание копии тензора изображения, для очистки в каждом цикле
+    image_temp_2 = image_temp_0.copy()
+
+
+    # Перебор контуров, классов и уверенности для отображения всех представителей классов вместе
+    for id, (contour_array, clas, confidence) in enumerate(zip(xyn, clases, confidences)):
+
+
+
+        # Перевод координат из процентов в пикселы
+        # Перевод координат из процентов в пикселы
+        new_contour_array = []
+        for point in contour_array:
+            new_point = []
+            new_point.append(point[0] * size[1])
+            new_point.append(point[1] * size[0])
+            new_contour_array.append(new_point)
+
+        new_contour_array = np.array(new_contour_array, dtype=np.float32)
+
+        # Преобразование координат контура
+        contour = new_contour_array.astype(np.int32)
+
+        # # Наложение контура и уверенности на изображение
+        draw_contour_and_confidence(image_temp_2, contour, clas, confidence)
+
+        # Отображение результата
+        cv2.imshow(f'{image_name} BEFOR', image_temp_2)
+
+        # Ожидание нажатия клавиши
+    cv2.waitKey(0)
+
+
+    cv2.destroyAllWindows()
+
+
+
+    # Перебор контуров, классов и уверенности для отображения каждого представителя класса отдельно
+
+    new_xyn = []
+    new_clases = []
+    new_confidences = []
+
+    # Создание копии тензора изображения, для очистки в каждом цикле
+    image_temp_1 = image_temp_0.copy()
+
+    for id, (contour_array, clas, confidence) in enumerate(zip(xyn, clases, confidences)):
+
+
+
+        # Перевод координат из процентов в пикселы
+        new_contour_array = []
+        for point in contour_array:
+            new_point = []
+            new_point.append(point[0] * size[1])
+            new_point.append(point[1] * size[0])
+            new_contour_array.append(new_point)
+
+        new_contour_array = np.array(new_contour_array, dtype=np.float32)
+
+        # Преобразование координат контура
+        contour = new_contour_array.astype(np.int32)
+
+        # # Наложение контура и уверенности на изображение
+        draw_contour_and_confidence(image_temp_1, contour, clas, confidence)
+
+        # Отображение результата
+        cv2.namedWindow("Segmented Image", cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty("Segmented Image", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        cv2.imshow("Segmented Image", image_temp_1)
+
+        # Ожидание нажатия клавиши
+        wait = True
+        while wait:
+            key = cv2.waitKey(0) & 0xFF  # использование маски для получения последнего байта
+            if key == ord('c'):  # если нажата клавиша 'c'
+                if clas == 0:
+                    clases[id] = 1
+                    clas = 1
+                    image_tecmp_1 = image_temp_0.copy()
+                    draw_contour_and_confidence(image_temp_1, contour, clas, confidence)
+                    cv2.namedWindow("Segmented Image", cv2.WINDOW_NORMAL)
+                    cv2.setWindowProperty("Segmented Image", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                    cv2.imshow("Segmented Image", image_temp_1)
+
+                elif clas == 1:
+                    clases[id] = 0
+                    clas = 0
+                    image_temp_1 = image_temp_0.copy()
+                    draw_contour_and_confidence(image_temp_1, contour, clas, confidence)
+
+                    cv2.namedWindow("Segmented Image", cv2.WINDOW_NORMAL)
+                    cv2.setWindowProperty("Segmented Image", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+                    cv2.imshow("Segmented Image", image_temp_1)
+                print("Нажата клавиша -с-")
+            elif key == 32:  # key = пробел
+                print("Нажата клавиша Пробел")
+                new_xyn.append(xyn[id])
+                new_clases.append(clases[id])
+                new_confidences.append(confidences[id])
+                wait = False
+
+            elif key == ord('0'):  # key = ноль
+                del xyn[id]
+                del clases[id]
+                del confidences[id]
+                print("Нажата клавиша ноль")
+                wait = False
+
+    cv2.destroyAllWindows()
+
+    with open(f'{output_annotation_folder}/{image_name[:-4]}.txt', 'w', encoding='utf-8') as file:
+        # Перебор контуров, классов и уверенности для отображения всех представителей классов вместе
+        for id, (contour_array, clas, confidence) in enumerate(zip(new_xyn, new_clases, new_confidences)):
+
+            # Перевод координат из процентов в пикселы
+            # Перевод координат из процентов в пикселы
+            new_contour_array = []
+            for point in contour_array:
+                new_point = []
+                new_point.append(point[0] * size[1])
+                new_point.append(point[1] * size[0])
+                new_contour_array.append(new_point)
+
+            new_contour_array = np.array(new_contour_array, dtype=np.float32)
+
+            # Преобразование координат контура
+            contour = new_contour_array.astype(np.int32)
+
+            # # Наложение контура и уверенности на изображение
+            draw_contour_and_confidence(image, contour, clas, confidence)
+
+            # Сохранение изображения с аннотациями
+            cv2.imwrite(f'{output_image_folder}/{image_name}', image)
+
+            # Отображение результата
+            cv2.imshow(f'{image_name} AFTER', image)
+
+            # Создание новых файлов аннотаций
+            xy_string = ''
+
+            for p_id, point in enumerate(contour_array):
+                for xy_id, xy in enumerate(point):
+                    if p_id == len(contour_array) - 1 and xy_id == len(point) - 1:
+                        xy_string = xy_string + str(xy)
+                    else:
+                        xy_string = xy_string + str(xy) + " "
+
+
+            if id == len(new_clases) - 1:
+                file.writelines(f'{clas} {xy_string}')
+            else:
+                file.writelines(f'{clas} {xy_string}\n')
+
+        # Сохранение изображения с аннотациями
+        cv2.imwrite(f'{output_image_folder}/{image_name}', image)
+
+        # Ожидание нажатия клавиши
+        cv2.waitKey(0)
+
+
+    cv2.destroyAllWindows()
